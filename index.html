@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>动物型人格专业测评</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #45a049;
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --card-bg: #ffffff;
+            --text-main: #2c3e50;
+            --text-sub: #7f8c8d;
+        }
+
+        body { 
+            font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; 
+            margin: 0; 
+            background: var(--bg-gradient); 
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-main);
+        }
+
+        .container { 
+            max-width: 500px; 
+            width: 90%;
+            margin: 20px auto; 
+            padding: 30px; 
+            background: var(--card-bg); 
+            border-radius: 24px; 
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        h1 { text-align: center; color: var(--text-main); font-weight: 700; margin-bottom: 10px; font-size: 1.6em; }
+        .subtitle { text-align: center; color: var(--text-sub); margin-bottom: 30px; font-size: 0.9em; }
+
+        input[type=text] { 
+            width: 100%; 
+            padding: 15px; 
+            font-size: 16px; 
+            margin: 20px 0; 
+            border-radius: 12px; 
+            border: 2px solid #eee; 
+            box-sizing: border-box;
+            outline: none;
+            transition: all 0.3s;
+        }
+        input[type=text]:focus { border-color: var(--primary-color); box-shadow: 0 0 10px rgba(76,175,80,0.1); }
+
+        button { 
+            width: 100%; 
+            padding: 16px; 
+            margin-top: 10px; 
+            font-size: 18px; 
+            font-weight: bold;
+            border: none; 
+            border-radius: 12px; 
+            background: var(--primary-color); 
+            color: #fff; 
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(76,175,80,0.3);
+            transition: all 0.3s;
+        }
+        button:hover { background: var(--secondary-color); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(76,175,80,0.4); }
+
+        .question { margin-bottom: 25px; animation: fadeIn 0.6s ease-out forwards; }
+        .question b { display: block; font-size: 1.1em; margin-bottom: 15px; color: #34495e; line-height: 1.4; }
+
+        label { 
+            display: flex; 
+            align-items: center;
+            padding: 14px 18px; 
+            margin-bottom: 12px; 
+            background: #fdfdfd;
+            border: 2px solid #f0f0f0;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        label:hover { background: #f1f8f1; border-color: #c8e6c9; }
+        label:has(input:checked) { background: #e8f5e9; border-color: var(--primary-color); }
+        label input { margin-right: 12px; transform: scale(1.3); accent-color: var(--primary-color); }
+
+        .progress-bar { height: 8px; background: #eee; border-radius: 10px; margin-bottom: 30px; overflow: hidden; }
+        .progress-inner { height: 100%; background: linear-gradient(90deg, #81c784, #4caf50); width: 0%; transition: width 0.4s ease; }
+
+        .chart-wrapper { width: 100%; height: 300px; margin: 20px 0; }
+        #resultText { margin-top: 25px; border-top: 2px solid #f5f5f5; padding-top: 25px; }
+        .result-section h2 { color: var(--primary-color); font-size: 1.5em; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        .result-section p { line-height: 1.8; color: #546e7a; font-size: 15px; }
+
+        .hidden { display: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container" id="startPage">
+    <h1>🐾 动物型人格测试</h1>
+    <div class="subtitle">Discover Your True Animal Persona</div>
+    <input id="username" type="text" placeholder="你的名字是？" autocomplete="off">
+    <button onclick="startTest()">开启测评</button>
+</div>
+
+<div class="container hidden" id="testPage">
+    <div class="progress-bar"><div class="progress-inner" id="progress"></div></div>
+    <form id="quizForm"></form>
+    <button onclick="submitTest()">查看我的报告</button>
+</div>
+
+<div class="container hidden" id="resultPage">
+    <h1>📊 你的测评报告</h1>
+    <div class="chart-wrapper">
+        <canvas id="radarChart"></canvas>
+    </div>
+    <div id="resultText"></div>
+    <button onclick="location.reload()" style="background:#b0bec5; margin-top:30px; font-size:14px; padding:12px;">重新测评</button>
+</div>
+
+<script>
+let currentUser="";
+let radarChart=null;
+let scores={lion:0,tiger:0,koala:0,owl:0};
+
+const questions=[
+    "当团队意见不统一时，你通常会？", "面对压力时你更可能？", "做决定时你依赖？", "朋友眼中的你是？", "工作中你最看重？"
+]; // 预览版仅展示前5题
+
+const options={
+    lion:["主导方向","强势应对","快速拍板","有领导力","结果导向"],
+    tiger:["迅速行动","积极突破","直觉判断","充满激情","速度第一"],
+    koala:["协调关系","寻求支持","听取建议","温和体贴","团队和谐"],
+    owl:["分析原因","冷静分析","数据依据","理性冷静","准确无误"]
+};
+
+function startTest(){
+    let u=document.getElementById("username").value;
+    if(!u){alert("请填写名字开始哦~");return;}
+    currentUser=u;
+    document.getElementById("startPage").classList.add("hidden");
+    document.getElementById("testPage").classList.remove("hidden");
+    generateQuestions();
+}
+
+function generateQuestions(){
+    const form=document.getElementById("quizForm");
+    form.innerHTML="";
+    for(let i=0;i<questions.length;i++){
+        let q=document.createElement("div");
+        q.className="question";
+        q.innerHTML="<b>"+(i+1)+". "+questions[i]+"</b>";
+        for(let type in options){
+            let label = document.createElement("label");
+            label.innerHTML = `<input type="radio" name="q${i}" value="${type}" onclick="updateProgress(${i})"> <span>${options[type][i]}</span>`;
+            q.appendChild(label);
+        }
+        form.appendChild(q);
+    }
+}
+
+function updateProgress(index){
+    let percent = ((index + 1) / questions.length) * 100;
+    document.getElementById("progress").style.width = percent + "%";
+}
+
+function submitTest(){
+    scores={lion:0,tiger:0,koala:0,owl:0};
+    for(let i=0;i<questions.length;i++){
+        let ans=document.querySelector('input[name="q'+i+'"]:checked');
+        if(!ans){alert("还有题目没写完哦！");return;}
+        scores[ans.value]++;
+    }
+    showResult();
+}
+
+function showResult(){
+    document.getElementById("testPage").classList.add("hidden");
+    document.getElementById("resultPage").classList.remove("hidden");
+
+    let total=questions.length;
+    let percent={
+        lion:Math.round(scores.lion/total*100),
+        tiger:Math.round(scores.tiger/total*100),
+        koala:Math.round(scores.koala/total*100),
+        owl:Math.round(scores.owl/total*100)
+    };
+
+    if(radarChart){radarChart.destroy();}
+    radarChart=new Chart(document.getElementById("radarChart"),{
+        type:"radar",
+        data:{
+            labels:["狮子", "老虎", "考拉", "猫头鹰"],
+            datasets:[{
+                data:[percent.lion,percent.tiger,percent.koala,percent.owl],
+                backgroundColor:"rgba(76,175,80,0.2)",
+                borderColor:"#4CAF50",
+                pointBackgroundColor: "#4CAF50",
+                borderWidth:3
+            }]
+        },
+        options:{ 
+            maintainAspectRatio: false,
+            scales: { r: { beginAtZero:true, max:100, ticks:{display:false} } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    let maxType=Object.keys(scores).reduce((a,b)=>scores[a]>scores[b]?a:b);
+    const reports = {
+        lion: `<div class="result-section"><h2>🦁 狮子型 · 领袖</h2><p><b>${currentUser}</b>，你拥有与生俱来的决策力。在群体中你总是最亮眼的那一位，果断和勇敢是你的勋章。</p></div>`,
+        tiger: `<div class="result-section"><h2>🐯 老虎型 · 开拓</h2><p><b>${currentUser}</b>，你行动如风。你拒绝等待机会，而是去创造机会。你是天生的实干家。</p></div>`,
+        koala: `<div class="result-section"><h2>🐨 考拉型 · 守护</h2><p><b>${currentUser}</b>，温和是你的超能力。你擅长共情，在喧嚣的世界中，你是最让人安心的力量。</p></div>`,
+        owl: `<div class="result-section"><h2>🦉 猫头鹰型 · 智者</h2><p><b>${currentUser}</b>，理性是你的灯塔。你对细节的极致追求，让你在任何领域都能成为专家。</p></div>`
+    };
+    document.getElementById("resultText").innerHTML= reports[maxType];
+}
+</script>
+</body>
+</html>
